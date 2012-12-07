@@ -1,0 +1,127 @@
+#page {
+	background-color: #CCCCFF;
+	background: url('../bg.jpg') repeat;
+	color:#EFE7BE;
+	}
+
+	#zone-user-wrapper {
+		background-color: transparent; 		
+		}
+			#zone-user {
+				background-color: transparent;
+				}
+					#region-user-first {
+						background-color: #002635;
+						}
+					#region-user-second {
+						background-color: #002635;
+						}
+	
+	#zone-branding-wrapper {
+		background-color: transparent;
+		}
+			#zone-branding {
+				background-color: transparent;
+				}
+				#region-branding {
+					background-color: #002635;
+					border:1px solid #D97925;
+					margin-top:15px;
+					}
+	
+	#zone-menu-wrapper {
+		background-color: transparent; 		
+		}
+			#region-menu {
+				background-color: #002635;
+				border:1px solid #D97925;
+				margin-top:15px;
+				margin-bottom:15px;
+				}
+			
+	
+	#zone-header-wrapper {
+		background-color: transparent;
+		}
+		#zone-header {
+			background-color: transparent;
+			}
+			#region-header-first {
+				background-color: #002635;
+				}
+			#region-header-second {
+				background-color: #002635;
+				}
+	
+	#zone-preface-wrapper {
+		background-color: transparent;
+		}
+		#zone-preface {
+			background-color: transparent;
+			}
+			#region-preface-first {
+				background-color: transparent;
+				}
+			#region-preface-second {
+				background-color: transparent;
+				}
+	
+			#region-preface-third {
+				background-color: transparent;
+				}
+				
+		#zone-content {
+			background-color: #013440;
+			padding:5px;
+			}
+			#breadcrumb {
+				background-color: transparent;
+				}
+			#messages {
+				background-color: transparent;
+				}
+			#region-content {
+				background-color: #D97925;
+				border: 3px dashed #AB1A25;
+				padding:10px;
+				}
+			#region-sidebar-first {
+				background-color: #AB1A25;
+				border: 2px solid #D97925;
+				padding:10px;
+				}
+			#region-sidebar-second {
+				background-color: transparent;
+				}
+		
+		#zone-postscript-wrapper {
+			background-color: transparent;
+			}
+				#zone-postscript {
+					background-color: transparent;
+					}
+						#region-postscript-first {
+						background-color: transparent;
+						}
+						#region-postscript-second {
+						background-color: transparent;
+						}
+						#region-postscript-third {
+						background-color: transparent;
+						}
+						#region-postscript-fourth {
+						background-color: transparent;
+						}
+						
+		#zone-footer-wrapper {
+			background-color: transparent;
+			}
+				#zone-footer {
+					background-color: transparent;
+					}
+						#region-footer-first {
+							background-color: transparent;
+							}
+						#region-footer-second {
+							background-color: transparent;
+							}

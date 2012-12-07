@@ -1,0 +1,958 @@
+<?php
+
+//require_once('/twit.inc');
+
+/**
+ * @file
+ * This is an example outlining how a module can make use of the new DBTNG
+ * database API in Drupal 7.
+ *
+ * @todo Demonstrate transaction usage.
+ *
+ * General documentation is available at
+ * @link database Database abstraction layer documentation @endlink and
+ * at @link http://drupal.org/node/310069 @endlink.
+ */
+
+/**
+ * @defgroup dbtng Example: Database (DBTNG)
+ * @ingroup examples
+ * @{
+ * Database examples, including DBTNG.
+ *
+ * 'DBTNG' means 'Database: The Next Generation.' Yes, Drupallers are nerds.
+ *
+ * General documentation is available at
+ * @link database.inc database abstraction layer documentation @endlink and
+ * at @link http://drupal.org/node/310069 Database API @endlink.
+ *
+ * The several examples here demonstrate basic database usage.
+ *
+ * In Drupal 6, the recommended method to save or update an entry in the
+ * database was drupal_write_record() or db_query().
+ *
+ * In Drupal 7 and forward, the usage of db_query()
+ * for INSERT, UPDATE, or DELETE is deprecated, because it is
+ * database-dependent. Instead specific functions are provided to perform these
+ * operations: db_insert(), db_update(), and db_delete() do the job now.
+ * (Note that drupal_write_record() is also deprecated.)
+ *
+ * db_insert() example:
+ * @code
+ *   // INSERT INTO {dbtng} (name, surname) VALUES('John, 'Doe')
+ *   db_insert('dbtng')
+ *     ->fields(array('name' => 'John', 'surname' => 'Doe'))
+ *     ->execute();
+ * @endcode
+ *
+ * db_update() example:
+ * @code
+ *   // UPDATE {dbtng} SET name = 'Jane' WHERE name = 'John'
+ *   db_update('dbtng')
+ *     ->fields(array('name' => 'Jane'))
+ *     ->condition('name', 'John')
+ *     ->execute();
+ * @endcode
+ *
+ * db_delete() example:
+ * @code
+ *   // DELETE FROM {dbtng} WHERE name = 'Jane'
+ *   db_delete('dbtng')
+ *     ->condition('name', 'Jane')
+ *     ->execute();
+ * @endcode
+ *
+ * See @link database Database Abstraction Layer @endlink
+ * @see db_insert()
+ * @see db_update()
+ * @see db_delete()
+ * @see drupal_write_record()
+*/
+
+/**
+ * Save an entry in the database.
+ *
+ * The underlying DBTNG function is db_insert().
+ *
+ * In Drupal 6, this would have been:
+ * @code
+ *   db_query(
+ *     "INSERT INTO {dbtng} (name, surname, age)
+ *       VALUES ('%s', '%s', '%d')",
+ *     $entry['name'],
+ *     $entry['surname'],
+ *     $entry['age']
+ *   );
+ * @endcode
+ *
+ * Exception handling is shown in this example. It could be simplified
+ * without the try/catch blocks, but since an insert will throw an exception
+ * and terminate your application if the exception is not handled, it is best
+ * to employ try/catch.
+ *
+ * @param $entry
+ *   An array containing all the fields of the database record.
+ *
+ * @see db_insert()
+ */
+function dbtng_entry_insert($entry) {
+  $return_value = NULL;
+  try {
+    $return_value = db_insert('dbtng')
+                    ->fields($entry)
+                    ->execute();
+  }
+  catch (Exception $e) {
+    drupal_set_message(t('db_insert failed. Message = %message, query= %query',
+      array('%message' => $e->getMessage(), '%query' => $e->query_string)), 'error');
+  }
+  return $return_value;
+}
+
+/**
+ * Update an entry in the database.
+ *
+ * The former, deprecated techniques used db_query() or drupal_write_record():
+ * @code
+ *  drupal_write_record('dbtng', $entry, $entry['pid']);
+ * @endcode
+ *
+ * @code
+ *  db_query(
+ *    "UPDATE {dbtng}
+ *     SET name = '%s', surname = '%s', age = '%d'
+ *     WHERE pid = %d",
+ *     $entry['pid']
+ *  );
+ * @endcode
+ *
+ * @param $entry
+ *   An array containing all the fields of the item to be updated.
+ *
+ * @see db_update()
+ */
+/*function dbtng_entry_update($entry) {
+  try {
+    // db_update()...->execute() returns the number of rows updated.
+    $count = db_update('dbtng')
+              ->fields($entry)
+              ->condition('pid', $entry['pid'])
+              ->execute();
+  }
+  catch (Exception $e) {
+    drupal_set_message(t('db_update failed. Message = %message, query= %query',
+      array('%message' => $e->getMessage(), '%query' => $e->query_string)), 'error');
+  }
+  return $count;
+}
+*/
+/**
+ * Delete an entry from the database.
+ *
+ * The usage of db_query is deprecated except for static queries.
+ * Formerly, a deletion might have been accomplished like this:
+ * @code
+ *  db_query("DELETE FROM {dbtng} WHERE pid = %d", $entry['pid]);
+ * @endcode
+ *
+ * @param $entry
+ *   An array containing at least the person identifier 'pid' element of the
+ *   entry to delete.
+ *
+ * @see db_delete()
+ */
+/*function dbtng_entry_delete($entry) {
+  db_delete('dbtng')
+    ->condition('pid', $entry['pid'])
+    ->execute();
+
+}
+*/
+
+/**
+ * Read from the database using a filter array.
+ *
+ * In Drupal 6, the standard function to perform reads was db_query(), and
+ * for static queries, it still is.
+ *
+ * db_query() used an SQL query with placeholders and arguments as parameters.
+ *
+ * @code
+ *  // Old way
+ *  $query = "SELECT * FROM {dbtng} n WHERE n.uid = %d AND name = '%s'";
+ *  $result = db_query($query, $uid, $name);
+ * @endcode
+ *
+ * Drupal 7 DBTNG provides an abstracted interface that will work with a wide
+ * variety of database engines.
+ *
+ * db_query() is deprecated except when doing a static query. The following is
+ * perfectly acceptable in Drupal 7. See
+ * @link http://drupal.org/node/310072 the handbook page on static queries @endlink
+ *
+ * @code
+ *   // SELECT * FROM {dbtng} WHERE uid = 0 AND name = 'John'
+ *   db_query(
+ *     "SELECT * FROM {dbtng} WHERE uid = :uid and name = :name",
+ *     array(':uid' => 0, ':name' => 'John')
+ *   )->execute();
+ * @endcode
+ *
+ * But for more dynamic queries, Drupal provides the db_select()
+ * API method, so there are several ways to perform the same SQL query.
+ * See the @link http://drupal.org/node/310075 handbook page on dynamic queries. @endlink
+ *
+ * @code
+ *   // SELECT * FROM {dbtng} WHERE uid = 0 AND name = 'John'
+ *   db_select('dbtng')
+ *     ->fields('dbtng')
+ *     ->condition('uid', 0)
+ *     ->condition('name', 'John')
+ *     ->execute();
+ * @endcode
+ *
+ * Here is db_select with named placeholders:
+ * @code
+ *   // SELECT * FROM {dbtng} WHERE uid = 0 AND name = 'John'
+ *   $arguments = array(':name' => 'John', ':uid' => 0);
+ *   db_select('dbtng')
+ *     ->fields('dbtng')
+ *     ->where('uid = :uid AND name = :name', $arguments)
+ *     ->execute();
+ * @endcode
+ *
+ * Conditions are stacked and evaluated as AND and OR depending on the type of
+ * query. For more information, read the conditional queries handbook page at:
+ * http://drupal.org/node/310086
+ *
+ * The condition argument is an 'equal' evaluation by default, but this can be
+ * altered:
+ * @code
+ *   // SELECT * FROM {dbtng} WHERE age > 18
+ *   db_select('dbtng')
+ *     ->fields('dbtng')
+ *     ->condition('age', 18, '>')
+ *     ->execute();
+ * @endcode
+ *
+ * @param $entry
+ *   An array containing all the fields used to search the entries in the table.
+ * @return
+ *   An object containing the loaded entries if found.
+ *
+ * @see db_select()
+ * @see db_query()
+ * @see http://drupal.org/node/310072
+ * @see http://drupal.org/node/310075
+ *
+ */
+
+function dbtng_entry_load($entry = array()) {
+  // Read all fields from the dbtng table.
+  $select = db_select('dbtng', 'example');
+  $select->fields('example');
+
+  // Add each field and value as a condition to this query.
+  foreach ($entry as $field => $value) {
+    $select->condition($field, $value);
+  }
+  // Return the result in object format.
+  return $select->execute()->fetchAll();
+}
+
+/**
+ * Render a filtered list of entries in the database.
+ *
+ * DBTNG also helps processing queries that return several rows, providing the
+ * found objects in the same query execution call.
+ *
+ * This function queries the database using a JOIN between users table and the
+ * example entries, to provide the username that created the entry, and creates
+ * a table with the results, processing each row.
+ *
+ * SELECT
+ *  e.pid as pid, e.name as name, e.surname as surname, e.age as age
+ *  u.name as username
+ * FROM
+ *  {dbtng} e
+ * JOIN
+ *  users u ON e.uid = u.uid
+ * WHERE
+ *  e.name = 'John' AND e.age > 18
+ *
+ * @see db_select()
+ * @see http://drupal.org/node/310075
+ */
+/*function dbtng_advanced_list() {
+  $output = '';
+
+  $select = db_select('dbtng', 'e');
+  // Join the users table, so we can get the entry creator's username.
+  $select->join('users', 'u', 'e.uid = u.uid');
+  // Select these specific fields for the output.
+  $select->addField('e', 'pid');
+  $select->addField('u', 'name', 'username');
+  $select->addField('e', 'name');
+  $select->addField('e', 'surname');
+  $select->addField('e', 'color');
+  $select->addField('e', 'age');
+  // Filter only persons named "John".
+  $select->condition('e.name', 'John');
+  // Filter only persons older than 18 years.
+  $select->condition('e.age', 18, '>');
+  // Make sure we only get items 0-49, for scalability reasons.
+  $select->range(0, 50);
+
+  // Now, loop all these entries and show them in a table. Note that there is no
+  // db_fetch_* object or array function being called here. Also note that the
+  // following line could have been written as
+  // $entries = $select->execute()->fetchAll() which would return each selected
+  // record as an object instead of an array.
+  $entries = $select->execute()->fetchAll(PDO::FETCH_ASSOC);
+  if (!empty($entries)) {
+    $rows = array();
+    foreach ($entries as $entry) {
+      // Sanitize the data before handing it off to the theme layer.
+      $rows[] = array_map('check_plain', $entry);
+    }
+    // Make a table for them.
+    $header = array(t('Id'), t('Created by'), t('Name'), t('Surname'), t('Color'), t('Age'));
+    $output .= theme('table', array('header' => $header, 'rows' => $rows));
+  }
+  else {
+    drupal_set_message(t('No entries meet the filter criteria (Name = "John" and Age > 18).'));
+  }
+  return $output;
+}
+*/
+//// Helper functions ////
+
+/**
+ * Implements hook_help().
+ *
+ * Show some help on each form provided by this module.
+ */
+/*
+function dbtng_help($path) {
+  $output = '';
+  switch ($path) {
+    case 'dbtng':
+      $output = t('Generate a list of all entries in the database. There is no filter in the query.');
+      break;
+    case 'dbtng/advanced':
+      $output  = t('A more complex list of entries in the database.') . ' ';
+      $output .= t('Only the entries with name = "John" and age older than 18 years are shown, the username of the person who created the entry is also shown.');
+      break;
+    case 'dbtng/update':
+      $output = t('Demonstrates a database update operation.');
+      break;
+    case 'dbtng/add':
+      $output = t('Add an entry to the dbtng table.');
+      break;
+  }
+  return $output;
+}
+*/
+
+/**
+ * Implements hook_menu().
+ *
+ * Set up calls to drupal_get_form() for all our example cases.
+ */
+function dbtng_menu() {
+  $items = array();
+
+  $items['dbtng'] = array(
+    'title' => 'DBTNG Example',
+    'page callback' => 'dbtng_list',
+    'access callback' => TRUE,
+  );
+  $items['dbtng/list'] = array(
+    'title' => 'List',
+    'type' => MENU_DEFAULT_LOCAL_TASK,
+    'weight' => -10,
+  );
+  $items['dbtng/add'] = array(
+    'title' => 'Add entry',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('dbtng_form_add'),
+    'access callback' => TRUE,
+    'type' => MENU_LOCAL_TASK,
+    'weight' => -9,
+  );
+  $items['dbtng/update'] = array(
+    'title' => 'Update entry',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('dbtng_form_update'),
+    'type' => MENU_LOCAL_TASK,
+    'access callback' => TRUE,
+    'weight' => -5,
+  );
+  $items['dbtng/advanced'] = array(
+    'title' => 'Advanced list',
+    'page callback' => 'dbtng_advanced_list',
+    'access callback' => TRUE,
+    'type' => MENU_LOCAL_TASK,
+  );
+
+  return $items;
+}
+
+/**
+ * Render a list of entries in the database.
+ */
+function dbtng_list() {
+  $output = '';
+
+  // Get all entries in the dbtng table.
+  if ($entries = dbtng_entry_load()) {
+    $rows = array();
+    foreach ($entries as $entry) {
+      // Sanitize the data before handing it off to the theme layer.
+      $rows[] = array_map('check_plain', (array) $entry);
+    }
+    // Make a table for them.
+    $header = array(t('Vendor Key'), t('Vendor Secret'), t('Consumer Key'), t('Consumer Secret'));
+    $output .= theme('table', array('header' => $header, 'rows' => $rows));
+  }
+  else {
+    drupal_set_message(t('No entries have been added yet.'));
+  }
+  return $output;
+}
+
+/**
+ * Prepare a simple form to add an entry, with all the interesting fields.
+ */
+function dbtng_form_add($form, &$form_state) {
+  $form = array();
+
+  $form['add'] = array(
+    '#type'  => 'fieldset',
+    '#title' => t('Add Credentials'),
+  );
+ 
+  $form['add']['consumer_key'] = array(
+    '#type'  => 'textfield',
+    '#title' => t('Consumer Key'),
+    '#size'  => 15,
+  );
+  $form['add']['consumer_secret'] = array(
+    '#type'  => 'textfield',
+    '#title' => t('Consumer Secret'),
+    '#size'  => 5,
+  );
+  $form['add']['submit'] = array(
+    '#type'  => 'submit',
+    '#value' => t('Submit'),
+  );
+
+  return $form;
+}
+
+/**
+ * Submit handler for 'add entry' form.
+ */
+function dbtng_form_add_submit($form, &$form_state) {
+  global $user;
+
+  // Save the submitted entry.
+  $entry = array(
+    'vendor_key'    => $form_state['values']['vendor_key'],
+    'vendor_secret' => $form_state['values']['vendor_secret'],
+    'consumer_key'     => $form_state['values']['consumer_key'],
+    'consumer_secret'     => $form_state['values']['consumer_secret'],    
+  );
+  $return = dbtng_entry_insert($entry);
+  if ($return) {
+    drupal_set_message(t("Created entry @entry", array('@entry' => print_r($entry, TRUE))));
+  }
+}
+
+/**
+ * Sample UI to update a record.
+ */
+/*function dbtng_form_update($form, &$form_state) {
+  $form = array(
+    '#prefix' => '<div id="updateform">',
+    '#suffix' => '</div>',
+  );
+
+  $entries = dbtng_entry_load();
+  $keyed_entries = array();
+  if (empty($entries)) {
+    $form['no_values'] = array(
+      '#value' => t("No entries exist in the table dbtng table."),
+    );
+    return $form;
+  }
+
+  foreach ($entries as $entry) {
+    $options[$entry->pid] = t("@pid: @name @surname (@age)", array('@pid' => $entry->pid, '@name' => $entry->name, '@surname' => $entry->surname, '@color' => $entry->color, '@age' => $entry->age));
+    $keyed_entries[$entry->pid] = $entry;
+  }
+  $default_entry = !empty($form_state['values']['pid']) ? $keyed_entries[$form_state['values']['pid']] : $entries[0];
+
+  $form_state['entries'] = $keyed_entries;
+
+  $form['pid'] = array(
+    '#type' => 'select',
+    '#options' => $options,
+    '#title' => t('Choose entry to update'),
+    '#default_value' => $default_entry->pid,
+    '#ajax' => array(
+      'wrapper' => 'updateform',
+      'callback' => 'dbtng_form_update_callback',
+    ),
+  );
+
+  $form['name'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Updated first name'),
+    '#size' => 15,
+    '#default_value' => $default_entry->name,
+  );
+
+  $form['surname'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Updated last name'),
+    '#size' => 15,
+    '#default_value' => $default_entry->surname,
+  );
+  $form['color'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Updated color'),
+    '#size' => 15,
+    '#default_value' => $default_entry->color,
+  );
+  $form['age'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Updated age'),
+    '#size' => 4,
+    '#default_value' => $default_entry->age,
+    '#description' => t("Values greater than 127 will cause an exception"),
+  );
+
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Update'),
+  );
+  return $form;
+}
+*/
+/**
+ * AJAX callback handler for the pid select.
+ *
+ * When the pid changes, populates the defaults from the database in the form.
+ */
+
+/*
+function dbtng_form_update_callback($form, $form_state) {
+  $entry = $form_state['entries'][$form_state['values']['pid']];
+  // Setting the #value of items is the only way I was able to figure out
+  // to get replaced defaults on these items. #default_value will not do it
+  // and shouldn't.
+  foreach (array('name', 'surname', 'color', 'age') as $item) {
+    $form[$item]['#value'] = $entry->$item;
+  }
+  return $form;
+}
+
+*/
+
+/**
+ * Submit handler for 'update entry' form.
+ */
+
+ 
+/*
+function dbtng_form_update_submit($form, &$form_state) {
+  global $user;
+
+  // Save the submitted entry.
+  $entry = array(
+    'pid' => $form_state['values']['pid'],
+    'name' => $form_state['values']['name'],
+    'surname' => $form_state['values']['surname'],
+    'age' => $form_state['values']['age'],
+    'color' => $form_state['values']['color'],
+    'uid' => $user->uid,
+  );
+  $count = dbtng_entry_update($entry);
+  drupal_set_message(t("Updated entry @entry (@count row updated)", array('@count' => $count, '@entry' => print_r($entry, TRUE))));
+}
+*/
+
+/**
+ * @} End of "defgroup dbtng".
+ */
+
+ 
+ /***************  BEGIN twit.inc *********************/
+ /*****************************************************/
+ /*****************************************************/
+ 
+ 
+
+
+/**The OAuthService serves as a base class to facilitate the creation of an open authentication request
+*/
+abstract class OAuthService{
+    
+    const GET = 'GET';
+    const POST = 'POST';
+    const PUT = 'PUT';
+    const JSON = 'JSON';
+    const XML = 'XML';
+    
+    /**This function creates all required data elements
+    *based on the passed OauthVO object, initiates an open authentication request
+    *and returns the retrieved data as a PHP object.
+    *
+    *@param OauthVO $oathVO Contains all data relative to creating an oAuth request
+    *
+    *@return Object A PHP object
+    */
+    protected function getPHPObject(OauthVO $oathVO){
+      
+        $XMLERR = 'XML to PHP object translation is not yet supported';
+$GETERR = 'Methods other than GET are not yet supported';
+
+        try{
+    Debug::printIt("Starting " . __FUNCTION__);
+  
+    if($oathVO->rest_method != self::GET){
+throw new Exception($GETERR);
+    }
+    //Assemble the data provided within the OauthVO object to perform the request
+    $oathVO->helpHumptyDumpty();
+    
+    //Construct arrays for use with cURL to retrieve requested data
+    $this->header = array($oathVO->derived_header, 'Expect:');
+    $this->options = array( CURLOPT_HTTPHEADER => $this->header,
+      CURLOPT_HEADER => false,
+      CURLOPT_URL => $oathVO->rest_baseUrl,
+      CURLOPT_RETURNTRANSFER => true,
+      CURLOPT_SSL_VERIFYPEER => false);
+    
+    //Init and retrieve data
+    $this->feed = curl_init();
+    curl_setopt_array($this->feed, $this->options);
+    $this->rawData = curl_exec($this->feed);
+    curl_close($this->feed);
+    
+    //Convert data to PHP object
+    if($oathVO->rest_returnType == self::JSON){
+      $this->php_object = json_decode($this->rawData);
+    }
+    if($oathVO->rest_returnType == self::XML){
+throw new Exception($XMLERR);
+    }
+    //Debug::printIt($json);
+    //Debug::printIt("Completed " . __FUNCTION__);
+    
+    return $this->php_object;
+}
+catch(Exception $e){
+    echo 'Exception : ' . $e->getMessage();
+}
+    }
+}
+
+/**Contains all properties and functions required to craft an open authentication request.
+*Required properties which must be populated include rest_baseUrl, rest_method
+*rest_returnType, and the CredentialsVO object passed upon instantiation.
+*
+*The helpHumptyDumpty() function may be called once all required properties
+*are populated to construct the required objects used in a request. If not
+*used, derive_url(), CredentialsVO->derive_compositeKey() must first
+*be executed, passing the results to derive_oathSignature(). Its results
+*may then be passed to the derive_header() to retrieve the final header
+*needed to craft and oAuth request.
+*
+*Additional open authenication data elements may be added to the varibles
+*listed as required by the oAuth encoded url. These must be prefixed with "oauth_".
+*Items which should only be present within the final header should be added as properties
+*prior to excuting derive_header()
+*
+*/
+class OauthVO{
+  
+    private $oauth_consumer_key;
+    private $oauth_nonce;
+    private $oauth_signature_method;
+    private $oauth_timestamp;
+    private $oauth_token;
+    private $oauth_version;
+    //oauth_signature (created by derive_oathSignature())
+    
+    public $rest_baseUrl;
+    public $rest_method;
+    public $rest_returnType;
+    public $creds_VO;
+    
+    public $derived_header;
+    public $derived_url;
+    public $derived_oathSignature;
+    
+    function __construct(CredentialsVO $credsVO){
+        Debug::printIt("Starting OauthVO " . __FUNCTION__);
+        
+        $this->creds_VO = $credsVO;
+
+//Populating properties within OauthVO foreach to be added to url and header
+        $this->oauth_consumer_key = $credsVO->consumer_key;
+        $this->oauth_token = $credsVO->oauth_access_token;
+        
+        $this->oauth_nonce = time();
+        $this->oauth_signature_method = 'HMAC-SHA1';
+        $this->oauth_timestamp = time();
+        $this->oauth_version = '1.0';
+
+        Debug::printIt("Completed OauthVO " . __FUNCTION__);
+    }
+    
+    /**Assembles all passed pieces
+    */
+    public function helpHumptyDumpty(){
+    
+    $this->derive_header($this->derive_oathSignature($this->derive_url(), $this->creds_VO->derive_compositeKey()));
+    
+    }
+    
+    /**Constructs an encoded url from the OauthVO object's properties:
+    *rest_method, rest_baseUrl and all properties prefixed with "oauth_"
+    *This populates the derived_url property as well as returns the encoded url.
+    *Each property is read, concatenating its name with its value.
+    *The resulting format is propertyName="[encoded propertyValue]"&propertyName1="[encoded propertyValue1]"...
+    *This is finally appended to the method and endpoint with a final format of:
+    *"[method]&[endpoint]&propertyName="[encoded propertyValue]"&propertyName1="[encoded propertyValue1]"...
+    */
+    public function derive_url(){            
+Debug::printIt("Starting " . __FUNCTION__);
+
+$r = array(); 
+        foreach ($this as $key => $value) {
+    $pos = strpos($key, 'oauth_');
+    if($pos !== false){
+
+$r[] = "$key=" . rawurlencode($value); 
+    }                    
+        }
+
+$this->derived_url = $this->rest_method ."&" . rawurlencode($this->rest_baseUrl) . '&' . rawurlencode(implode('&', $r));
+
+Debug::printIt(__FUNCTION__ . " output =" .$this->derived_url);
+Debug::printIt("Completed " . __FUNCTION__);
+
+return $this->derived_url;
+
+    } 
+    
+    /**Constructs the signature utilizing the passed derived_url and CredentialsVO->derived_compositeKey.
+    *This populates the oauth_signature property as well as returns the constructed signature.
+    *
+    *@param String $encodedFullUrl An encoded url including method name, url and applicable key value pairs
+    *@param String $compositeKey The encoded combined service provider's and consumer's secret
+    */
+    public function derive_oathSignature($encodedFullUrl, $compositeKey){
+Debug::printIt("Starting " . __FUNCTION__);
+    
+$this->oauth_signature = base64_encode(hash_hmac('sha1', $encodedFullUrl, $compositeKey, true)); //Type hinting would help here
+
+Debug::printIt(__FUNCTION__ . " output =" . $this->oauth_signature);
+Debug::printIt("Completed " . __FUNCTION__);
+
+return $this->oauth_signature;
+    }
+
+    /**Constructs the final header utilizing all OauthVO properties
+    *prefixed with "oauth_". Each property is read, concatenating its name with
+    * its encoded value. The resulting format is propertyName="[encoded propertyValue]", propertyName1="[ encoded propertyValue1]"...
+    *
+    */
+    public function derive_header(){
+        Debug::printIt("Starting " . __FUNCTION__);
+        
+        $r = 'Authorization: OAuth ';
+        $values = array();
+
+        foreach ($this as $key => $value) {
+    $pos = strpos($key, 'oauth_');
+
+    if($pos !== false){	
+$values[] = "$key=\"" . rawurlencode($value) . "\""; 
+    }
+        }
+$this->derived_header = $r .= implode(', ', $values);
+
+Debug::printIt(__FUNCTION__ . " output =" . $this->derived_header);
+Debug::printIt("Completed " . __FUNCTION__);
+
+return $this->derived_header;
+    }
+}
+
+/**
+*This class serves as a container for all service provider and consumer specific credentials
+*The following properties must be valued:
+*$oauth_access_token, $oauth_access_token_secret, $consumer_key, $consumer_secret
+*
+*@property String $oauth_access_token A value used by the Consumer to gain access to the Protected Resources on behalf of the User, instead of using the UserÕs Service Provider credentials.
+*@property String $oauth_access_token_secret A secret used by the Consumer to establish ownership of a given Token.
+*@property String $consumer_key A value used by the Consumer to identify itself to the Service Provider.
+*@property String $consumer_secret A secret used by the Consumer to establish ownership of the Consumer Key. 
+*
+**/
+class CredentialsVO{
+  
+    public $oauth_access_token;
+    public $oauth_access_token_secret;
+    public $consumer_key;
+    public $consumer_secret;
+    
+    public $derived_compositeKey;
+    
+    public function derive_compositeKey(){
+    Debug::printIt("Starting " . __FUNCTION__);
+    
+    Debug::printIt("consumer_secret =  $this->consumer_secret");
+    Debug::printIt("oauth_access_token_secret =  $this->oauth_access_token_secret");
+    
+    $this->derived_compositeKey = rawurlencode($this->consumer_secret) . '&' . rawurlencode($this->oauth_access_token_secret);
+    
+    Debug::printIt(__FUNCTION__ . " output =" . $this->derived_compositeKey);
+    Debug::printIt("Completed " . __FUNCTION__);
+
+return $this->derived_compositeKey;
+    }
+}
+
+/**
+*This class serves as an extension to the open authenication service class OAuthService
+*and requires upon instantiation that the consumer's key and secret are passed.
+*
+*@param String $cKey A value used by the Consumer to identify itself to the Service Provider.
+*@param String $cSecret A secret used by the Consumer to establish ownership of the Consumer Key. 
+*/
+class TwitterOauth extends OAuthService{
+    
+    
+    
+    const GET = 'GET';
+    const POST = 'POST';
+    const PUT = 'PUT';
+    
+    const JSON = 'JSON';
+    const XML = 'XML';
+    
+    //Place the service provider's access credentials here
+    const OAUTH_ACCESS_TOKEN = "557795428-8M6JXHNQ7b0Y0g2Gsg0jZZCBAKmrg5udPpRIE1g";
+    const OAUTH_ACCESS_TOKEN_SECRET = "mPFmzaxACSUonl3kEm3jQLMsQNmCqrDiLnqxLqb8Ns";
+
+    function __construct($cKey, $cSecret){
+      Debug::printIt("Starting TwitterOauth " . __FUNCTION__);
+        
+//Create the credentials object store
+$this->twitCreds = new CredentialsVO();
+
+//Set the service provider's credentials
+        $this->twitCreds->oauth_access_token = self::OAUTH_ACCESS_TOKEN;
+        $this->twitCreds->oauth_access_token_secret = self::OAUTH_ACCESS_TOKEN_SECRET;
+        
+//Set the consumer's credentials
+$this->twitCreds->consumer_key = $cKey;
+$this->twitCreds->consumer_secret = $cSecret;
+    
+//Instantiate our open authentication object
+$this->twitOauth= new OauthVO($this->twitCreds);
+
+Debug::printIt("Completed TwitterOauth " . __FUNCTION__);
+    }
+    
+    /**Returns the current count of friends, followers, updates (statuses) and favorites of the authenticating user.
+    *@return Object A PHP object
+    */
+    public function getTotals(){
+
+        Debug::printIt("Starting " . __FUNCTION__);
+        
+        //Populate open authentication object with URL and method
+    $this->twitOauth->rest_baseUrl = "http://api.twitter.com/1/account/totals.json";
+        $this->twitOauth->rest_method = self::GET;
+$this->twitOauth->rest_returnType = self::JSON;
+
+        //Based on the passed paramters, get the data
+    $phpObject = $this->getPHPObject($this->twitOauth);
+        
+  
+        Debug::printIt("Completed " . __FUNCTION__);
+        return $phpObject;
+    }
+    
+    
+    /**Returns the current items as delegated by the passed URL, method and returnType
+    *@param String $url The endpoint through which to retrieve the data sought
+    *@param String $method The method through which the data is conveyed (GET, POST, etc)
+    *@param String $returnType The type of data returned by the service
+    */
+    public function getManual($url, $method, $returnType){
+        
+        Debug::printIt("Starting " . __FUNCTION__);
+        
+$RESTERR = 'A URL and method (GET, POST, etc) and return type (JSON, XML) must be specified';
+
+        try{
+$this->twitOauth->rest_baseUrl = $url;
+        $this->twitOauth->rest_method = $method;
+        $this->twitOauth->rest_returnType = $returnType;
+        
+        if($this->twitOauth->baseUrl == null ||
+  $this->twitOauth->method == null ||
+  $this->twitOauth->returnType == null)
+            throw new Exception($RESTERR);
+        
+        $phpObject = $this->getPHPObject($this->twitOauth);
+}
+catch(Exception $e){
+    echo 'Exception : ' . $e->getMessage();
+}
+  
+      Debug::printIt("Completed " . __FUNCTION__);
+        return $phpObject;
+        
+    }    
+}
+
+/**A utility class enabling one to print information regarding objects and procedures
+  *as we move through the code.
+  *
+  *set $debugOn to true to enable function output
+  */
+class Debug{
+    
+    public static $debugOn;
+  
+    static function printIt($object){
+
+      $debugOn = false;
+      
+      if($debugOn) {
+        print_r("<br>\n");
+        print_r($object);
+        print_r("<br>\n");
+      }
+    }    
+}
+
+/*$creds = &dbtng_entry_load(array(0));
+
+$test = new TwitterOauth($creds[2], $creds[3]);*/
+
+//$testManualResult = $test->getManual("http://api.twitter.com/1/account/totals.json", "GET", "JSON");
+//print_r($testManualResult);
+
+
+//$testTotalsResult = $test->getTotals();
+//print_r($testTotalsResult);
+

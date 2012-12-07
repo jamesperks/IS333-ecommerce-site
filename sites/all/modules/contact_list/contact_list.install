@@ -1,0 +1,259 @@
+<?php
+/**
+ * @file
+ * install file for Contact List module.
+ */
+
+/**
+ *Implements hook_install().
+ * - Add the First Name Field.
+ * - Add the Last Name FIeld.
+ * - Add the Address Field.
+ * - Add the City Field.
+ * - Add the State Field.
+ * - Add the Zip Code Field.
+ * - Add the Phone Number field.
+ * - Add the email field
+ */
+
+function contact_list_install() {
+node_types_rebuild();   
+$types = node_type_get_types();
+
+// node_add_body_field($types['contact_list']);
+
+// $body_instance = field_info_instance('node','body', 'contact_list');
+
+// $body_instance['type'] = 'text_summary_or_trimmed';
+
+// field_update_instance($body_instance);
+
+// Create all the fields we are adding to our content type.   
+foreach (_contact_list_installed_fields() as $field) {     
+  field_create_field($field);   
+  }   
+  
+// Create all the instances for our fields. 
+foreach (_contact_list_installed_instances() as $instance) {
+     $instance['entity_type'] = 'node';     
+     $instance['bundle'] = 'contact_list';     
+     field_create_instance($instance);   
+     }  
+}
+
+/**  
+ * Return a structured array defining the fields created by this content type.  
+ */ 
+
+function _contact_list_installed_fields() {   
+$t = get_t();   
+return array(     
+  'first_name' => array(       
+     'field_name'  => 'first_name',       
+     'label'       => $t("Contact's First Name."),       
+     'type'        => 'text',     
+     ),  
+  'last_name' => array(       
+     'field_name'  => 'last_name',       
+     'label'       => $t("Contact's Last Name."),       
+     'type'        => 'text',     
+     ), 
+  'street_address' => array(       
+     'field_name'  => 'street_address',       
+     'label'       => $t("Contact's address."),       
+     'type'        => 'text',     
+     ),   
+  'city' => array(       
+     'field_name'  => 'city',       
+     'label'       => $t("Person's city."),       
+     'type'        => 'text',     
+     ),
+  'state' => array(       
+     'field_name'  => 'state',       
+     'label'       => $t("Person'state."),       
+     'type'        => 'text',     
+     ),   
+  'zip_code' => array(       
+     'field_name'  => 'zip_code',       
+     'label'       => $t("Person's zipcode."),       
+     'type'        => 'text',     
+     ),
+  'phone_number' => array(       
+     'field_name'  => 'phone_number',       
+     'label'       => $t("Person's phone number."),       
+     'type'        => 'text',     
+     ),        
+  'email' => array(       
+     'field_name'  => 'email',       
+     'label'       => $t("Person's email."),       
+     'type'        => 'text',     
+     ),                
+  ); 
+}
+
+/**  
+ * Return a structured array defining the field instances associated with this content type. 
+ */ 
+function _contact_list_installed_instances() {
+   $t = get_t();
+   return array(
+     //first_name
+     'first_name' => array(       
+     'field_name'  => 'first_name',       
+     'type'        => 'text',
+     'label'       => $t("Contact's first name."),
+     'widget'      => array(         
+       'type'    => 'text_textfield',       
+      ),       
+     'display' => array(         
+       'example_node_list' => array(           
+         'label'       => $t("Contact's first name."),           
+         'type' => 'text',         
+         ),       
+       ),     
+     ),
+     //last_name
+     'last_name' => array(       
+     'field_name'  => 'last_name',       
+     'type'        => 'text',
+     'label'       => $t("Contact's last name."),
+     'widget'      => array(         
+       'type'    => 'text_textfield',       
+      ),       
+     'display' => array(         
+       'example_node_list' => array(           
+         'label'       => $t("Contact's last name."),           
+         'type' => 'text',         
+         ),       
+       ),     
+     ),
+     //street_address
+     'street_address' => array(       
+     'field_name'  => 'street_address',       
+     'type'        => 'text',
+     'label'       => $t("Contact's street address."),
+     'widget'      => array(         
+       'type'    => 'text_textfield',       
+      ),       
+     'display' => array(         
+       'example_node_list' => array(           
+         'label'       => $t("Contact's street address."),           
+         'type' => 'text',
+         ),       
+       ),     
+     ),   
+     //city
+     'city' => array(       
+     'field_name'  => 'city',       
+     'type'        => 'text',
+     'label'       => $t("Contact's city."),
+     'widget'      => array(         
+       'type'    => 'text_textfield',       
+      ),       
+     'display' => array(         
+       'example_node_list' => array(           
+         'label'       => $t("Contact's city."),           
+         'type' => 'text',
+         ),       
+       ),     
+     ),
+     //state
+     'state' => array(       
+     'field_name'  => 'state',       
+     'type'        => 'text',
+     'label'       => $t("Contact's state."),
+     'widget'      => array(         
+       'type'    => 'text_textfield',       
+      ),       
+     'display' => array(         
+       'example_node_list' => array(           
+         'label'       => $t("Contact's state."),           
+         'type' => 'text',
+         ),       
+       ),     
+     ),   
+     //zip_code
+     'zip_code' => array(       
+     'field_name'  => 'zip_code',       
+     'type'        => 'text',
+     'label'       => $t("Contact's zip code."),
+     'widget'      => array(         
+       'type'    => 'text_textfield',       
+      ),       
+     'display' => array(         
+       'example_node_list' => array(           
+         'label'       => $t("Contact's zipcode."),           
+         'type' => 'text',
+         ),       
+       ),     
+     ),   
+     //phone_number
+     'phone_number' => array(       
+     'field_name'  => 'phone_number',       
+     'type'        => 'text',
+     'label'       => $t("Contact's phone number."),
+     'widget'      => array(         
+       'type'    => 'text_textfield',       
+      ),       
+     'display' => array(         
+       'example_node_list' => array(           
+         'label'       => $t("Contact's phone number."),           
+         'type' => 'text',
+         ),       
+       ),     
+     ),
+     //email
+     'email' => array(       
+     'field_name'  => 'email',       
+     'type'        => 'text',
+     'label'       => $t("Contact's email."),
+     'widget'      => array(         
+       'type'    => 'text_textfield',       
+      ),       
+     'display' => array(         
+       'example_node_list' => array(           
+         'label'       => $t("Contact's email."),           
+         'type' => 'text',
+         ),       
+       ),     
+     ),      
+ ); 
+}
+
+/**
+ * Implements hook_uninstall().
+ */
+function contact_list_uninstall() {
+  // Gather all the content that might have been created while
+  // this module was enabled.
+  $sql = 'SELECT nid FROM {node} n WHERE n.type = :type';
+  $result = db_query($sql, array(':type' => 'contact_list'));
+  $nid = array();
+  foreach ($result as $row) {
+    $nids[] = $row->nid;
+  } 
+
+
+// Delete all the nodes at once
+node_delete_multiple($nids);
+
+// Loop over each of the fields defined by this module and dete
+// all instances of their field, their data, and the field itself.
+
+foreach (array_keys(_contact_list_installed_fields()) as $field) {
+  field_delete_field($field);
+}
+
+// Loop over any remaining field instances attached to the contact_list
+// content type and delete them individually.
+$instances = field_info_instances('node', 'contact_list');
+foreach ($instances as $instance_name => $instance) {
+  field_delete_instance($instance);
+ }
+
+// Delete our content type
+node_type_delete('contact_list');
+
+// Purge all field information
+field_purge_batch(1000);
+}

@@ -1,0 +1,236 @@
+<?php
+
+/**
+ * @file
+ * This module provides a node type called contact list.
+ */
+
+/**
+ * Implements hook_node_info() to provide our contact_list type.
+ */
+global $user;
+
+function contact_list_node_info() {
+  return array(
+    'contact_list' => array(
+      'name' => t('Contact List'),
+      'base' => 'contact_list',
+      'description' => t('use this content type to add a contact to the contact list.'),
+      'has_title' => TRUE,
+      'help' => t('Enter the name, address, and contact info.'),
+    ),
+  );
+}
+
+/**
+* Implement hook_menu() with the standard default form.
+*/
+function contact_list_menu() {
+  $items = array();
+ 
+  // The report tab for our new content type
+  $items['node/%contact_list_menu/email'] = array(
+    'title' => 'Email',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('contact_list_tab_callback', 1),
+    'access arguments' => array('access'),
+    'weight' => 2,
+    'type' => MENU_LOCAL_TASK,
+  );
+ 
+  return $items;
+  }
+
+/**
+ * Menu loader callback.
+ */
+function contact_list_menu_load($nid) {
+  if (!is_numeric($nid)) {
+    return FALSE;
+  }
+ 
+  // Load the full node so that we can determine that it's the right
+  // content type.
+  $node = node_load($nid);
+ 
+  // If the node has failed to load, or isn't the right content type, do not show.
+  if (!isset($node->type) || $node->type != 'contact_list') {
+    return FALSE;
+  }
+ 
+  return $node;
+}
+
+
+/**
+ * contact_list_report_tab_callback().
+ *
+ * Page callback for the results tab which appears
+ * on open & closed competition nodes.
+ */
+
+function contact_list_tab_callback($form, &$form_state, $node){
+  
+$default_value = isset($node->email['und']) ? $node->email['und'][0]['value'] : "no email saved";
+  $form['to'] = array(
+    '#type' => 'textfield',
+    '#title' => 'To:', 
+    '#size' => '20',
+    '#default_value' => $default_value,
+  );
+
+  $form['subject'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Subject',
+    '#size' => '50',
+  );
+
+  $form['message'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Message'),
+  );
+
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => 'Send Email',
+  );
+
+  return $form;
+
+}
+
+function contact_list_tab_callback_validate($form, &$form_state) {
+  $valid_email = $form_state['values']['to'];
+  if (!valid_email_address($valid_email)) {
+  form_set_error('to', 'Sorry. To email address,' . $valid_email . ', is not valid. Please submit a valid E-mail address.');
+  }
+}
+
+function contact_list_tab_callback_mail($key, &$message, $params) {
+
+  $headers = array(
+    'MIME-Version' => '1.0',
+    'Content-Type' => 'text/html; charset=UTF-8;',
+    'Content-Transfer-Encoding' => '8Bit',
+    'X-Mailer' => 'Drupal'
+  );
+
+  foreach ($headers as $key => $value) {
+    $message['headers'][$key] = $value;
+  }
+
+  $message['subject'] = $params['subject'];
+  $message['body'] = $params['body'];
+}
+
+function contact_list_tab_callback_submit($form, &$form_state) {
+    $from = 'ceb922@hotmail.com';
+    $body[] = $form_state['values']['message']; 
+    $to = $form_state['values']['to']; // Set this email address - emails will be sent to this email address!
+    $params = array(
+    'body' => $body,
+    'subject' => $form_state['values']['subject'],
+    );
+
+    if (drupal_mail('contact_list_tab_callback', 'some_mail_key', $to, language_default(), $params, $from, TRUE))
+    {
+        drupal_set_message('Your email was sent!');    
+    } else {
+        drupal_set_message('There was an error sending your email. Please try again later');
+    }  
+}
+
+/**
+ * Implements hook_insert()
+ */
+
+function contact_list_node_presave($node) {
+$first = $node->first_name['und'][0]['value'];
+$last = $node->last_name['und'][0]['value'];
+$node->title = $first.' '.$last;
+}
+
+
+/**
+  * Implements hook_node_access().
+  */
+
+ function contact_list_node_access($op, $node, $account) {
+
+  if($account->uid) {
+    $is_author = ($account->uid == $node->uid);
+    }
+    else{
+      $is_author = FALSE;
+    }
+   
+   switch ($op) {
+     case 'view':
+       if ($is_author) {
+         return NODE_ACCESS_ALLOW;
+       }
+     case 'update':
+       if ($is_author) {
+         return NODE_ACCESS_ALLOW ;
+       }
+     case 'delete':
+      if ($is_author) {
+         return NODE_ACCESS_ALLOW;
+       }
+   }
+   return NODE_ACCESS_DENY;
+ }
+ 
+
+/**
+* Implements hook_block_info().
+*/
+function contact_list_block_info() {
+  $blocks['contact_list'] = array(
+  'info' => t('Your Contact List'),
+  'status' => TRUE,
+  'region' => 'sidebar_second',
+  'weight' => 0,
+    );
+  return $blocks;
+}
+
+/**
+* Implements hook_block_view().
+*/
+function contact_list_block_view($delta = '') {
+  switch ($delta) {
+    case 'contact_list':
+      $block['subject'] = t('Your Contact List');
+      $block['content'] = contact_list_block_contents($delta);
+      break;
+  }
+  return $block;
+}
+
+/**
+* A module-defined block content function.
+*/
+function contact_list_block_contents($delta) {
+  global $user;
+  if($user->uid) {
+    $uid= $user->uid;
+    }
+    else{
+      return;
+    }
+  
+
+  switch ($delta) {
+    case 'contact_list':
+      $result = db_query("SELECT nid, title FROM {node} WHERE type = :type AND uid = :uid", array(':type' => $delta, ':uid' => $uid));
+      $items = array();
+      foreach($result as $row){
+        $items[] = l($row->title, "node/{$row->nid}");
+      }
+      ksort($items);
+      return array('#markup' => theme('item_list', array('items' => $items))); 
+      // return theme('item_list', $items);
+      break;
+  }
+} 

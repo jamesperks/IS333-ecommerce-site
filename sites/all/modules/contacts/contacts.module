@@ -1,0 +1,811 @@
+<?php
+
+function is_logged_in() {
+  global $user;
+  if ($user->uid) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+function contacts_entry_insert($entry) {
+  $return_value = NULL;
+  try {
+    $return_value = db_insert('contacts')
+                    ->fields($entry)
+                    ->execute();
+  }
+  catch (Exception $e) {
+    drupal_set_message(t('db_insert failed. Message = %message, query= %query',
+      array('%message' => $e->getMessage(), '%query' => $e->query_string)), 'error');
+  }
+  return $return_value;
+}
+
+
+function contacts_entry_update($entry) {
+  try {
+    // db_update()...->execute() returns the number of rows updated.
+    $count = db_update('contacts')
+              ->fields($entry)
+              ->condition('pid', $entry['pid'])
+              ->execute();
+  }
+  catch (Exception $e) {
+    drupal_set_message(t('db_update failed. Message = %message, query= %query',
+      array('%message' => $e->getMessage(), '%query' => $e->query_string)), 'error');
+  }
+  return $count;
+}
+
+function contacts_entry_delete($entry) {
+  db_delete('contacts')
+    ->condition('pid', $entry['pid'])
+    ->execute();
+
+}
+
+function contacts_delete($param)
+{
+   global $user;
+  
+  $select = db_select('contacts', 'e');
+  $select->addField('e', 'pid');
+  $select->addField('e', 'name');
+  // Filter only persons added by current user
+  $select->condition('e.uid', $user->uid);
+  // Filter only where id = $_GET['id']
+  $select->condition('e.pid', $param);
+
+  $entries = $select->execute()->fetchAll(PDO::FETCH_ASSOC);
+  if (!empty($entries)) {
+      contacts_entry_delete($entries[0]);
+      $output = "Contact deleted. <a href=\"?q=contacts\">Go back to contacts</a>";
+      //var_dump(drupal_get_form('contacts_email_form'));
+      return $output;
+  } else {
+    return 'Permission Denied';
+  }
+}
+
+function contacts_entry_load($entry = array()) {
+  global $user;
+  
+  // Read all fields from the contacts table.
+  $select = db_select('contacts', 'example');
+  $select->fields('example');
+
+  // Add each field and value as a condition to this query.
+  foreach ($entry as $field => $value) {
+    $select->condition($field, $value);
+  }
+  $select->condition('example.uid', $user->uid);
+  // Return the result in object format.
+  return $select->execute()->fetchAll();
+}
+
+
+//// Get specific entry from database
+function contacts_view($param)
+{
+  if(is_logged_in()) {
+    global $user;
+    
+    $select = db_select('contacts', 'e');
+    // Select these specific fields for the output.
+    $select->addField('e', 'pid');
+    $select->addField('e', 'name');
+    $select->addField('e', 'surname');
+    $select->addField('e', 'address');
+    $select->addField('e', 'phone');
+    $select->addField('e', 'email');
+    // Filter only persons added by current user
+    $select->condition('e.uid', $user->uid);
+    // Filter only where id = $_GET['id']
+    $select->condition('e.pid', $param);
+  
+    // Now, loop all these entries and show them in a table. Note that there is no
+    // db_fetch_* object or array function being called here. Also note that the
+    // following line could have been written as
+    // $entries = $select->execute()->fetchAll() which would return each selected
+    // record as an object instead of an array.
+    $entries = $select->execute()->fetchAll(PDO::FETCH_ASSOC);
+    if (!empty($entries)) {
+      $rows = array();
+      $i=0;
+      foreach ($entries as $entry) {
+        // Sanitize the data before handing it off to the theme layer.
+        $rows[] = array_map('check_plain', $entry);
+        $rows[$i]['email'] = '<a href="?q=contacts/email/'.$rows[$i]['pid'].'">'.$rows[$i]['email'].'</a>';
+        $delete = $rows[0]['pid'];
+        unset($rows[0]['pid']);
+        $i++;
+      }
+      // Make a table for them.
+      $header = array(t('Name'), t('Surname'), t('Address'), t('Phone'), t('Email'));
+      $output = theme('table', array('header' => $header, 'rows' => $rows));
+      $output .= "<a href=\"?q=contacts/delete/".$delete."\">Delete contact</a>";
+    }
+    else {
+      drupal_set_message(t('No contacts found).'));
+    }
+    $output .= '<br><a href="/~jwp5/drupal/?q=contacts">Go back</a>';
+    return $output;
+  } else {
+    return "Permission Denied";
+  }
+}
+
+function contacts_email_form($form, $form_state, $param)
+{
+  if(is_logged_in()) {
+    global $user;
+    
+    $select = db_select('contacts', 'e');
+    $select->addField('e', 'pid');
+    $select->addField('e', 'name');
+    $select->addField('e', 'email');
+    // Filter only persons added by current user
+    $select->condition('e.uid', $user->uid);
+    // Filter only where id = $_GET['id']
+    $select->condition('e.pid', $param);
+  
+    $entries = $select->execute()->fetchAll(PDO::FETCH_ASSOC);
+    if (!empty($entries)) {
+        $_SESSION['contacts']['email'] = $entries[0]['email'];
+        $output =  'Use this form to send a message to '.$entries[0]['name'].'. No spamming!';
+
+        $form['description'] = array(
+          '#type' => 'item',
+          '#title' => t($output),
+        );
+        $form['message'] = array(
+          '#type' => 'textarea',
+          '#title' => t('Message'),
+          '#required' => TRUE,
+        );
+        $form['submit'] = array(
+          '#type' => 'submit',
+          '#value' => t('Submit'),
+        );
+        $form['cancel'] = array(
+          '#type' => 'button',
+          '#value' => t('Cancel'),
+          '#weight' => 20,
+          '#executes_submit_callback' => TRUE,
+          '#submit' => array('contacts_form_cancel'),
+          '#limit_validation_errors' => array(),
+        );
+    } else {
+      $form['description'] = array(
+        '#type' => 'item',
+        '#title' => t('Permission denied'),
+      );
+    }
+  } else {
+    $form['description'] = array(
+      '#type' => 'item',
+      '#title' => t('Permission denied'),
+    );
+  }
+
+  return $form;
+}
+
+function contacts_form_cancel(){
+  drupal_goto('contacts');
+}
+
+function contacts_mail($key, &$message, $params) {
+  global $user;
+
+  // Each message is associated with a language, which may or may not be the
+  // current user's selected language, depending on the type of e-mail being
+  // sent. This $options array is used later in the t() calls for subject
+  // and body to ensure the proper translation takes effect.
+  $options = array(
+    'langcode' => $message['language']->language,
+  );
+
+  switch ($key) {
+    // Send a simple message from the contact form.
+    case 'contact_message':
+      $message['subject'] = t('E-mail sent from @site-name', array('@site-name' => variable_get('site_name', 'Drupal')), $options);
+      // Note that the message body is an array, not a string.
+      $message['body'][] = t('@name sent you the following message:', array('@name' => $user->name), $options);
+      // Because this is just user-entered text, we do not need to translate it.
+
+      // Since user-entered text may have unintentional HTML entities in it like
+      // '<' or '>', we need to make sure these entities are properly escaped,
+      // as the body will later be transformed from HTML to text, meaning
+      // that a normal use of '<' will result in truncation of the message.
+      $message['body'][] = check_plain($params['message']);
+      break;
+  }
+}
+
+/**
+ * Form validation logic for the contact form.
+ */
+function contacts_email_form_validate($form, $form_state) {
+  if (!valid_email_address($_SESSION['contacts']['email'])) {
+    form_set_error('email', t('That e-mail address is not valid.'));
+  }
+}
+
+function contacts_email_form_submit($form, $form_state) {
+  contacts_email_send($form_state['values']);
+  //drupal_set_message(t($form_state['values']['message']));
+}
+
+function contacts_email_send($form_values) {
+  // All system mails need to specify the module and template key (mirrored from
+  // hook_mail()) that the message they want to send comes from.
+  $module = 'contacts';
+  $key = 'contact_message';
+
+  // Specify 'to' and 'from' addresses.
+  $to = $_SESSION['contacts']['email'];
+  $from = variable_get('site_mail', 'admin@example.com');
+
+  // "params" loads in additional context for email content completion in
+  // hook_mail(). In this case, we want to pass in the values the user entered
+  // into the form, which include the message body in $form_values['message'].
+
+  $params = $form_values;
+
+  // The language of the e-mail. This will one of three values:
+  // * user_preferred_language(): Used for sending mail to a particular website
+  //   user, so that the mail appears in their preferred language.
+  // * global $language: Used when sending a mail back to the user currently
+  //   viewing the site. This will send it in the language they're currently
+  //   using.
+  // * language_default(): Used when sending mail to a pre-existing, 'neutral'
+  //   address, such as the system e-mail address, or when you're unsure of the
+  //   language preferences of the intended recipient.
+  //
+  // Since in our case, we are sending a message to a random e-mail address that
+  // is not necessarily tied to a user account, we will use the site's default
+  // language.
+  $language = language_default();
+
+  // Whether or not to automatically send the mail when drupal_mail() is
+  // called. This defaults to TRUE, and is normally what you want unless you
+  // need to do additional processing before drupal_mail_send() is called.
+  $send = TRUE;
+  // Send the mail, and check for success. Note that this does not guarantee
+  // message delivery; only that there were no PHP-related issues encountered
+  // while sending.
+  $result = drupal_mail($module, $key, $to, $language, $params, $from, $send);
+  if ($result['result'] == TRUE) {
+    drupal_set_message(t('Your message has been sent.'));
+  }
+  else {
+    drupal_set_message(t('There was a problem sending your message and it was not sent.'), 'error');
+  }
+
+}
+
+function contacts_menu() {
+  $items = array();
+
+  $items['contacts'] = array(
+    'title' => 'My Contacts',
+    'page callback' => 'contacts_list',
+    'access callback' => TRUE,
+  );
+  $items['contacts/list'] = array(
+    'title' => 'List',
+    'type' => MENU_DEFAULT_LOCAL_TASK,
+    'weight' => -10,
+  );
+  $items['contacts/add'] = array(
+    'title' => 'Add entry',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('contacts_form_add'),
+    'access callback' => TRUE,
+    'type' => MENU_LOCAL_TASK,
+    'weight' => -9,
+  );
+  $items['contacts/update'] = array(
+    'title' => 'Update entry',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('contacts_form_update'),
+    'type' => MENU_LOCAL_TASK,
+    'access callback' => TRUE,
+    'weight' => -5,
+  );
+  $items['contacts/email/%'] = array(
+    'title' => 'Send E-Mail',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('contacts_email_form', 2),
+    'access arguments' => array('access content'),
+    'access callback' => TRUE,
+    'type' => MENU_CALLBACK,
+  );
+  $items['contacts/view/%'] = array(
+    'title' => 'Contact Information',
+    'page callback' => 'contacts_view',
+    'page arguments' => array(2),
+    'access arguments' => array('access content'),
+    'type' => MENU_CALLBACK,
+  );
+  $items['contacts/delete/%'] = array(
+    'title' => 'Delete Contact',
+    'page callback' => 'contacts_delete',
+    'page arguments' => array(2),
+    'access arguments' => array('access content'),
+    'type' => MENU_CALLBACK,
+  );
+  $items['contacts/find/%'] = array(
+    'title' => 'Find Contacts',
+    'page callback' => 'contacts_find',
+    'page arguments' => array(2),
+    'access arguments' => array('access content'),
+    'type' => MENU_CALLBACK,
+  );
+
+  return $items;
+}
+
+function contacts_block($op = 'list', $delta = 0, $edit = array()) {  
+  switch($op) {
+    case "list": // This is where you set the information that appears in the listings page
+      $block[0]["info"] = t('Your Blocks Title');
+    break;
+    case "view":  // This is what appears in the actual block content, this is where you call in your pre-existing module function!
+      $block["subject"] = t('Your Blocks Title');
+      $block["content"] = contacts_list2(); // Call your page function directly here
+    break;
+  }
+}
+
+/**
+ * Render a list of entries in the database.
+ */
+function contacts_list() {
+  if(is_logged_in()) {
+    global $user;
+    $output = '';
+    $select = db_select('contacts', 'e');
+    // Join the users table, so we can get the entry creator's username.
+    $select->join('users', 'u', 'e.uid = u.uid');
+    // Select these specific fields for the output.
+    $select->addField('e', 'pid');
+    $select->addField('u', 'name', 'username');
+    $select->addField('e', 'name');
+    $select->addField('e', 'surname');
+    $select->addField('e', 'address');
+    $select->addField('e', 'phone');
+    $select->addField('e', 'email');
+    // Filter only persons added by current user
+    $select->condition('e.uid', $user->uid);
+  
+    // Now, loop all these entries and show them in a table. Note that there is no
+    // db_fetch_* object or array function being called here. Also note that the
+    // following line could have been written as
+    // $entries = $select->execute()->fetchAll() which would return each selected
+    // record as an object instead of an array.
+    $entries = $select->execute()->fetchAll(PDO::FETCH_ASSOC);
+    $ids = array();
+    if (!empty($entries)) {
+      $rows = array();
+      $i=0;
+      foreach ($entries as $entry) {
+        // Sanitize the data before handing it off to the theme layer.
+        $rows[] = array_map('check_plain', $entry);
+        //print_r($rows);
+        $rows[$i]['name'] = '<a href="?q=contacts/view/'.$rows[$i]['pid'].'">'.$rows[$i]['name'].' '. $rows[$i]['surname'].'</a>';
+        $ids[$i] = $rows[$i]['pid'];
+        unset($rows[$i]['pid']);
+        unset($rows[$i]['surname']);
+        unset($rows[$i]['username']);
+        $rows[$i]['email'] = '<a href="?q=contacts/email/'.$ids[$i].'">'.$rows[$i]['email'].'</a>';
+        $i++;
+      }
+      //print_r($rows);
+      
+      // Make a table for them.
+      $header = array(t('Name'), t('Address'), t('Phone'), t('Email'));
+      $output .= theme('table', array('header' => $header, 'rows' => $rows));
+      $output .= drupal_render(drupal_get_form('contacts_form_search'));
+    }
+    else {
+      drupal_set_message(t('No contacts added yet.'));
+      $output .= "No contacts added yet. <a href=\"?q=contacts/add\">Click here to add your first contact!</a>";
+    }
+    return $output;
+  } else {
+    return "Permission Denied";
+  }
+}
+
+/**
+ * Render a list of entries in the database using fulltext search
+ */
+function contacts_find($param) {
+  if(is_logged_in()) {
+    //echo 'param: '.$param.'<br>';
+    global $user;
+    $output = '';
+    $select = db_select('contacts', 'e');
+    // Join the users table, so we can get the entry creator's username.
+    $select->join('users', 'u', 'e.uid = u.uid');
+    // Select these specific fields for the output.
+    $select->addField('e', 'pid');
+    $select->addField('u', 'name', 'username');
+    $select->addField('e', 'name');
+    $select->addField('e', 'surname');
+    $select->addField('e', 'address');
+    $select->addField('e', 'phone');
+    $select->addField('e', 'email');
+    // Filter only persons added by current user
+    $select->condition('e.uid', $user->uid);
+  
+    // Now, loop all these entries and show them in a table. Note that there is no
+    // db_fetch_* object or array function being called here. Also note that the
+    // following line could have been written as
+    // $entries = $select->execute()->fetchAll() which would return each selected
+    // record as an object instead of an array.
+    $entries = $select->execute()->fetchAll(PDO::FETCH_ASSOC);
+
+    //$keys = array_keys($entries, $param);
+    //print_r($keys);
+    //print_r($entries);
+    $keys = array();
+    
+    $i=0;
+    foreach($entries as $searchentry) {
+      array_map('check_plain', $searchentry);
+      unset($searchentry['username']);
+      $search_in = implode(' ', $searchentry);
+      if(strpos(strtolower($search_in), strtolower($param))) {
+        //echo 'found '.$param.' in '.$search_in.'<br>';
+        $keys[] = $searchentry['pid'];
+      }/* else {
+          echo 'couldn\'t find '.$param.' in '.$search_in.'<br>';
+      }*/
+      $i++;
+    }
+    
+    //print_r($keys);
+    
+    if (!empty($entries)) {
+      $rows = array();
+      $i=0;
+      foreach ($entries as $entry) {
+        if(in_array($entry['pid'], $keys)) {
+          // Sanitize the data before handing it off to the theme layer.
+          $rows[] = array_map('check_plain', $entry);
+          //print_r($rows);
+          $rows[$i]['name'] = '<a href="?q=contacts/view/'.$rows[$i]['pid'].'">'.$rows[$i]['name'].' '. $rows[$i]['surname'].'</a>';
+          $ids[$i] = $rows[$i]['pid'];
+          unset($rows[$i]['pid']);
+          unset($rows[$i]['surname']);
+          unset($rows[$i]['username']);
+          $rows[$i]['email'] = '<a href="?q=contacts/email/'.$ids[$i].'">'.$rows[$i]['email'].'</a>';
+          $i++;
+        } else {
+          unset($rows[$i]);
+        }
+      }
+      //print_r($rows);
+      
+      // Make a table for them.
+      if(!empty($i)) {
+        $header = array(t('Name'), t('Address'), t('Phone'), t('Email'));
+        $output .= theme('table', array('header' => $header, 'rows' => $rows));
+        $output .= drupal_render(drupal_get_form('contacts_form_search'));
+      } else {
+        $output .= "No contacts found with query \"".$param."\"";
+        $output .= drupal_render(drupal_get_form('contacts_form_search'));
+      }
+    }
+    else {
+      drupal_set_message(t('No contacts added yet.'));
+      $output .= "No contacts added yet. <a href=\"?q=contacts/add\">Click here to add your first contact!</a>";
+    }
+    return $output;
+  } else {
+    return "Permission Denied";
+  }
+}
+
+/**
+ * Prepare a simple form to add an entry, with all the interesting fields.
+ */
+function contacts_form_search($form, $form_state) {
+  if(is_logged_in()) {
+    $form = array();
+  
+    $form['search']['search'] = array(
+      '#type'  => 'textfield',
+      '#title' => t('Search'),
+      '#size'  => 15,
+    );
+    $form['search']['submit'] = array(
+      '#type'  => 'submit',
+      '#value' => t('Go!'),
+    );
+  
+    return $form;
+  }
+}
+
+function contacts_form_search_submit($form, $form_state) {
+  print_r($form_state);
+  drupal_goto('contacts/find/'.$form_state['values']['search']);
+  //exit;
+}
+
+/**
+ * Prepare a simple form to add an entry, with all the interesting fields.
+ */
+function contacts_form_add($form, $form_state) {
+  if(is_logged_in()) {
+    $form = array();
+  
+    $form['add'] = array(
+      '#type'  => 'fieldset',
+      '#title' => t('Add a person entry'),
+    );
+    $form['add']['name'] = array(
+      '#type'  => 'textfield',
+      '#title' => t('Name'),
+      '#size'  => 15,
+    );
+    $form['add']['surname'] = array(
+      '#type'  => 'textfield',
+      '#title' => t('Surname'),
+      '#size'  => 15,
+    );
+    $form['add']['address'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Address'),
+      '#size' => 15,
+    );
+    $form['add']['phone'] = array(
+      '#type'  => 'textfield',
+      '#title' => t('Phone'),
+      '#size'  => 15,
+    );
+    $form['add']['email'] = array(
+      '#type'  => 'textfield',
+      '#title' => t('Email'),
+      '#size'  => 15,
+    );
+    $form['add']['submit'] = array(
+      '#type'  => 'submit',
+      '#value' => t('Add'),
+    );
+  
+    return $form;
+  }
+}
+
+/**
+ * Submit handler for 'add entry' form.
+ */
+function contacts_form_add_submit($form, $form_state) {
+  global $user;
+
+  // Save the submitted entry.
+  $entry = array(
+    'name'    => $form_state['values']['name'],
+    'surname' => $form_state['values']['surname'],
+    'address' => $form_state['values']['address'],
+    'phone'   => $form_state['values']['phone'],
+    'email'   => $form_state['values']['email'],
+    'uid'     => $user->uid,
+  );
+  $return = contacts_entry_insert($entry);
+  if ($return) {
+    drupal_set_message(t($entry['name']." ".$entry['surname']." has been added successfully"));
+  }
+}
+
+/**
+ * Sample UI to update a record.
+ */
+function contacts_form_update($form, $form_state) {
+  if(is_logged_in()) {
+    $form = array(
+      '#prefix' => '<div id="updateform">',
+      '#suffix' => '</div>',
+    );
+  
+    $entries = contacts_entry_load();
+    $keyed_entries = array();
+    if (empty($entries)) {
+      $form['no_values'] = array(
+        '#value' => t("No entries exist in the table contacts table."),
+      );
+      return $form;
+    }
+  
+    foreach ($entries as $entry) {
+      $options[$entry->pid] = t("@name @surname", array('@pid' => $entry->pid, '@name' => $entry->name, '@surname' => $entry->surname, '@address' => $entry->address, '@phone' => $entry->phone, '@email' => $entry->email));
+      $keyed_entries[$entry->pid] = $entry;
+    }
+    $default_entry = !empty($form_state['values']['pid']) ? $keyed_entries[$form_state['values']['pid']] : $entries[0];
+  
+    $form_state['entries'] = $keyed_entries;
+  
+    $form['pid'] = array(
+      '#type' => 'select',
+      '#options' => $options,
+      '#title' => t('Choose entry to update'),
+      '#default_value' => $default_entry->pid,
+      '#ajax' => array(
+        'wrapper' => 'updateform',
+        'callback' => 'contacts_form_update_callback',
+      ),
+    );
+  
+    $form['name'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Updated first name'),
+      '#size' => 15,
+      '#default_value' => $default_entry->name,
+    );
+  
+    $form['surname'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Updated last name'),
+      '#size' => 15,
+      '#default_value' => $default_entry->surname,
+    );
+    $form['address'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Updated address'),
+      '#size' => 15,
+      '#default_value' => $default_entry->address,
+      '#description' => t("Updated address"),
+    );
+    $form['phone'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Updated phone number'),
+      '#size' => 15,
+      '#default_value' => $default_entry->phone,
+      '#description' => t("Updated phone number"),
+    );
+    $form['email'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Updated email address'),
+      '#size' => 15,
+      '#default_value' => $default_entry->email,
+      '#description' => t("Updated email address"),
+    );
+    $form['submit'] = array(
+      '#type' => 'submit',
+      '#value' => t('Update'),
+    );
+    return $form;
+  } else {
+    return "Permission Denied";
+  }
+}
+
+/**
+ * AJAX callback handler for the pid select.
+ *
+ * When the pid changes, populates the defaults from the database in the form.
+ */
+function contacts_form_update_callback($form, $form_state) {
+  $entry = $form_state['entries'][$form_state['values']['pid']];
+  // Setting the #value of items is the only way I was able to figure out
+  // to get replaced defaults on these items. #default_value will not do it
+  // and shouldn't.
+  foreach (array('name', 'surname', 'address', 'phone', 'email') as $item) {
+    $form[$item]['#value'] = $entry->$item;
+  }
+  return $form;
+}
+
+/**
+ * Submit handler for 'update entry' form.
+ */
+function contacts_form_update_submit($form, $form_state) {
+  global $user;
+
+  // Save the submitted entry.
+  $entry = array(
+    'pid' => $form_state['values']['pid'],
+    'name' => $form_state['values']['name'],
+    'surname' => $form_state['values']['surname'],
+    'address' => $form_state['values']['address'],
+    'phone' => $form_state['values']['phone'],
+    'email' => $form_state['values']['email'],
+    'uid' => $user->uid,
+  );
+  $count = contacts_entry_update($entry);
+  drupal_set_message(t("Updated entry @entry (@count row updated)", array('@count' => $count, '@entry' => print_r($entry, TRUE))));
+}
+/**
+ * @} End of "defgroup contacts".
+ */
+
+ function contacts_block_info() {
+  // This hook returns an array, each component of which is an array of block
+  // information. The array keys are the 'delta' values used in other block
+  // hooks.
+
+  // The required block information is a block description, which is shown
+  // to the site administrator in the list of possible blocks. You can also
+  // provide initial settings for block weight, status, etc.
+
+  $blocks['example_uppercase'] = array(
+    // info: The name of the block.
+    'info' => t('A block containing users contacts'),
+    'status' => TRUE,
+    'region' => 'sidebar_first',  // Not usually provided. );
+  );
+  return $blocks;
+}
+
+/**
+ * Implements hook_block_view().
+ *
+ * This hook generates the contents of the blocks themselves.
+ */
+function contacts_block_view($delta = '') {
+  //The $delta parameter tells us which block is being requested.
+   if(is_logged_in()) {
+    global $user;
+    
+    $select = db_select('contacts', 'e');
+    // Select these specific fields for the output.
+    $select->addField('e', 'pid');
+    $select->addField('e', 'name');
+    $select->addField('e', 'surname');
+    // Filter only persons added by current user
+    $select->condition('e.uid', $user->uid);
+    $select->range(0,10);
+    // Now, loop all these entries and show them in a table. Note that there is no
+    // db_fetch_* object or array function being called here. Also note that the
+    // following line could have been written as
+    // $entries = $select->execute()->fetchAll() which would return each selected
+    // record as an object instead of an array.
+    $entries = $select->execute()->fetchAll(PDO::FETCH_ASSOC);
+    if (!empty($entries)) {
+      $rows = array();
+      $i=0;
+      $output='';
+      foreach ($entries as $entry) {
+        // Sanitize the data before handing it off to the theme layer.
+        $rows[] = array_map('check_plain', $entry);
+        $output .= '<a href="?q=contacts/view/'.$rows[$i]['pid'].'">'.$rows[$i]['name'].' '. $rows[$i]['surname'].'</a><br>';
+        $i++;
+      }
+      if($i==10) {
+        $output .= '<a href="?q=contacts">View all</a>';
+      }
+    }
+    else {
+      $output = 'No contacts found!';
+    }
+  } else {
+    $output = "Log in to see your contacts!";
+  }
+  switch ($delta) {
+    case 'example_uppercase':
+      $block['subject'] = t("Contact List");
+      $block['content'] = t($output);
+      break;
+  }
+  return $block;
+}
+
+/**
+ * A module-defined block content function.
+ */
+function contacts_contents($which_block) {
+  switch ($which_block) {
+    case 'example_empty':
+      // It is possible that a block not have any content, since it is
+      // probably dynamically constructed. In this case, Drupal will not display
+      // the block at all. This block will not be displayed.
+      return;
+  }
+}

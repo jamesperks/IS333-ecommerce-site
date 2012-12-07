@@ -1,0 +1,113 @@
+<?php
+/**
+ * @file
+ * Install, update and uninstall functions for the dbtng module.
+ */
+
+/**
+ * Implements hook_install().
+ *
+ * In Drupal 7, there is no need to install schema using this hook, the schema
+ * is already installed before this hook is called.
+ *
+ * We will create a default entry in the database.
+ *
+ * @see hook_install()
+ * @ingroup dbtng
+ */
+/*function dbtng_install() {
+  // Outside of the .install file we would use drupal_write_record() to
+  // populate the database, but it cannot be used here, so we'll use
+  // db_insert().
+
+  // Add a default entry.
+  $fields = array(
+    'name'    => 'John',
+    'surname' => 'Doe',
+    'color' => "Pink",
+    'age'     => 0,
+  );
+  db_insert('dbtng')
+    ->fields($fields)
+    ->execute();
+
+  // Add another entry.
+  $fields = array(
+    'name'    => 'John',
+    'surname' => 'Roe',
+    'color' => "Black",
+    'age'     => 100,
+    'uid'     => 1,
+  );
+  db_insert('dbtng')
+    ->fields($fields)
+    ->execute();
+
+}
+*/
+/**
+ * Implements hook_uninstall().
+ *
+ * As in hook_install, there is no need to uninstall schema, Drupal will do it
+ * for us.
+ *
+ * @see hook_uninstall()
+ * @ingroup dbtng
+ */
+function dbtng_uninstall() {
+  // nothing.
+}
+
+
+/**
+ * Implements hook_schema().
+ *
+ * Defines the database tables used by this module.
+ * Remember that the easiest way to create the code for hook_schema is with
+ * the @link http://drupal.org/project/schema schema module @endlink
+ *
+ * @see hook_schema()
+ * @ingroup dbtng
+ */
+function dbtng_schema() {
+
+  $schema['dbtng'] = array(
+    'description' => 'Stores keys',
+    'fields' => array(
+      'vendor_key'  => array(
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'description' => 'Vendor Key',
+      ),
+      'vendor_secret' => array(
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'description' => "Vendor Secret",
+      ),
+      'consumer_key' => array(
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'description' => 'Consumer Key',
+      ),
+      'consumer_secret' => array(
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'description' => 'Consumer Secret',
+      )     
+      
+    ),
+    /*
+    'indexes' => array(
+      'name'    => array('name'),
+      'surname' => array('surname'),
+      'age'     => array('age'),
+      'color'     => array('color'),
+    ),*/
+  );
+
+  return $schema;
+}

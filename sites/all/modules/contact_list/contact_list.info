@@ -1,0 +1,6 @@
+name = Contact List
+description = A content type for contacts.
+package = IS218
+core = 7.x
+files[] = contact_list.install
+files[] = contact_list.module
